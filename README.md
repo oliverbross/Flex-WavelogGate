@@ -180,14 +180,12 @@ Requirements:
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
-wails generate module
-cd frontend
-bun install --frozen-lockfile
-bun run build
-cd ..
-go test ./...
 wails build -clean
+go test ./...
+go vet ./...
 ```
+
+`wails build` generates the bindings and runs the locked Bun install and frontend build configured in `wails.json`.
 
 With a local xCAT endpoint, the optional integration test is read-only:
 
