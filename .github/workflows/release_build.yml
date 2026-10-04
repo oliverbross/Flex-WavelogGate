@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             platform: darwin/arm64
             artifact: Flex-WavelogGate-darwin-arm64
-          - os: macos-latest
+          - os: macos-15-intel
             platform: darwin/amd64
             artifact: Flex-WavelogGate-darwin-amd64
           - os: windows-latest
@@ -89,7 +89,7 @@ jobs:
           sudo gem install --no-document fpm
 
       - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
       - name: Build
         shell: bash
@@ -206,8 +206,14 @@ jobs:
             'Categories=HamRadio;Network;' \
             > "${PKG}/usr/share/applications/flex-waveloggate.desktop"
 
-          printf 'Package: flex-waveloggate\nVersion: %s\nArchitecture: %s\nMaintainer: Flex-WavelogGate contributors\nDescription: Flex-WavelogGate\n Connects xCAT and WSJT-X/FLDigi to the Wavelog web logging platform.\n' \
-            "${VERSION}" "${DEB_ARCH}" > "${PKG}/DEBIAN/control"
+          if [ "$WK" = "webkit4.1" ]; then
+            WEBKIT_RUNTIME="libwebkit2gtk-4.1-0"
+          else
+            WEBKIT_RUNTIME="libwebkit2gtk-4.0-37"
+          fi
+
+          printf 'Package: flex-waveloggate\nVersion: %s\nArchitecture: %s\nMaintainer: Oliver (OM0RX)\nDepends: libgtk-3-0, %s\nDescription: Flex-WavelogGate\n Connects xCAT and WSJT-X/FLDigi to the Wavelog web logging platform.\n' \
+            "${VERSION}" "${DEB_ARCH}" "$WEBKIT_RUNTIME" > "${PKG}/DEBIAN/control"
 
           dpkg-deb --build "${PKG}"
 
@@ -217,9 +223,9 @@ jobs:
             -v "${VERSION}" \
             --iteration "${WK}" \
             -a "${RPM_ARCH}" \
-            -m "Flex-WavelogGate contributors" \
-            --vendor "Flex-WavelogGate contributors" \
-            --license "MIT" \
+            -m "Oliver (OM0RX)" \
+            --vendor "Oliver (OM0RX)" \
+            --license "GPL-3.0-or-later" \
             --description "Connects xCAT and WSJT-X/FLDigi to the Wavelog web logging platform." \
             -p "flex-waveloggate-${VERSION}-${WK}.${RPM_ARCH}.rpm" \
             -C "${PKG}" \
@@ -259,16 +265,29 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v5
+
       - uses: actions/download-artifact@v5
         with:
           path: artifacts
 
+      - name: Create checksums
+        shell: bash
+        run: |
+          find artifacts -type f -print0 \
+            | sort -z \
+            | xargs -0 sha256sum \
+            | sed -E 's#  artifacts/[^/]+/#  #' \
+            > artifacts/SHA256SUMS.txt
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          name: Flex-WavelogGate ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
           tag_name: ${{ github.ref_name }}
           files: |
+            artifacts/SHA256SUMS.txt
             artifacts/Flex-WavelogGate-darwin-arm64/*.dmg
             artifacts/Flex-WavelogGate-darwin-amd64/*.dmg
             artifacts/Flex-WavelogGate-windows-amd64-x64/Flex-WavelogGate-windows-amd64-x64.exe

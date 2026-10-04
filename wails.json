@@ -2,12 +2,19 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "Flex-WavelogGate",
   "outputfilename": "Flex-WavelogGate",
-  "frontend:install": "bun install",
+  "frontend:install": "bun install --frozen-lockfile",
   "frontend:build": "bun run build",
   "frontend:dev:watcher": "bun run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Joerg",
-    "email": "joerg@dj7nt.de"
+    "name": "Oliver (OM0RX)",
+    "email": "oliverbross@users.noreply.github.com"
+  },
+  "info": {
+    "companyName": "Oliver (OM0RX)",
+    "productName": "Flex-WavelogGate",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 Oliver (OM0RX). GPL-3.0-or-later.",
+    "comments": "xCAT bridge for FlexRadio and Wavelog"
   }
 }
