@@ -12,11 +12,17 @@ import (
 
 // Profile holds per-profile configuration.
 type Profile struct {
-	WavelogURL         string  `json:"wavelog_url"`
-	WavelogKey         string  `json:"wavelog_key"`
-	WavelogID          string  `json:"wavelog_id"`
-	WavelogRadioname   string  `json:"wavelog_radioname"`
-	WavelogPmode       bool    `json:"wavelog_pmode"`
+	WavelogURL       string `json:"wavelog_url"`
+	WavelogKey       string `json:"wavelog_key"`
+	WavelogID        string `json:"wavelog_id"`
+	WavelogRadioname string `json:"wavelog_radioname"`
+	WavelogPmode     bool   `json:"wavelog_pmode"`
+	XCATHost         string `json:"xcat_host"`
+	XCATPort         string `json:"xcat_port"`
+	XCATEna          bool   `json:"xcat_ena"`
+
+	// Legacy radio settings are retained only so an existing WaveLogGate
+	// configuration can be imported without losing its Wavelog pairing.
 	FlrigHost          string  `json:"flrig_host"`
 	FlrigPort          string  `json:"flrig_port"`
 	FlrigEna           bool    `json:"flrig_ena"`
@@ -70,8 +76,11 @@ func defaultProfile() Profile {
 		WavelogURL:         "",
 		WavelogKey:         "",
 		WavelogID:          "0",
-		WavelogRadioname:   "WLGate",
+		WavelogRadioname:   "Flex-xCAT",
 		WavelogPmode:       true,
+		XCATHost:           "127.0.0.1",
+		XCATPort:           "4532",
+		XCATEna:            true,
 		FlrigHost:          "127.0.0.1",
 		FlrigPort:          "12345",
 		FlrigEna:           false,
@@ -90,7 +99,7 @@ func defaultProfile() Profile {
 
 func Default() Config {
 	return Config{
-		Version:        9,
+		Version:        10,
 		Profile:        0,
 		ProfileNames:   []string{"Profile 1", "Profile 2"},
 		UDPEnabled:     true,
@@ -109,6 +118,14 @@ func configPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return filepath.Join(dir, "Flex-WavelogGate", "config.json"), nil
+}
+
+func legacyConfigPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
 	return filepath.Join(dir, "WavelogGate", "config.json"), nil
 }
 
@@ -119,13 +136,22 @@ func Load() (Config, error) {
 	}
 
 	data, err := os.ReadFile(path)
+	loadedLegacy := false
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg := Default()
-			_ = Save(cfg)
-			return cfg, nil
+			legacyPath, legacyErr := legacyConfigPath()
+			if legacyErr == nil {
+				data, err = os.ReadFile(legacyPath)
+				loadedLegacy = err == nil
+			}
+			if !loadedLegacy {
+				cfg := Default()
+				_ = Save(cfg)
+				return cfg, nil
+			}
+		} else {
+			return Default(), err
 		}
-		return Default(), err
 	}
 
 	var cfg Config
@@ -134,6 +160,10 @@ func Load() (Config, error) {
 	}
 
 	cfg = migrate(cfg)
+	if loadedLegacy {
+		// Copy, never move: the official WaveLogGate installation remains intact.
+		_ = Save(cfg)
+	}
 	return cfg, nil
 }
 
@@ -152,7 +182,7 @@ func Save(cfg Config) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// migrate ensures the config matches version 9 schema.
+// migrate ensures the config matches version 10 schema.
 func migrate(cfg Config) Config {
 	// Ensure at least 2 profiles exist.
 	for len(cfg.Profiles) < 2 {
@@ -198,6 +228,26 @@ func migrate(cfg Config) Config {
 	if cfg.Version < 9 {
 		cfg.Version = 9
 		// HamlibMaxPower defaults to 0 = auto (ask the rig via power2mW).
+	}
+	if cfg.Version < 10 {
+		cfg.Version = 10
+		for i := range cfg.Profiles {
+			p := &cfg.Profiles[i]
+			p.XCATHost = "127.0.0.1"
+			p.XCATPort = "4532"
+			p.XCATEna = true
+			p.FlrigEna = false
+			p.HamlibEna = false
+			p.HamlibManaged = false
+		}
+	}
+	for i := range cfg.Profiles {
+		if cfg.Profiles[i].XCATHost == "" {
+			cfg.Profiles[i].XCATHost = "127.0.0.1"
+		}
+		if cfg.Profiles[i].XCATPort == "" {
+			cfg.Profiles[i].XCATPort = "4532"
+		}
 	}
 	return cfg
 }

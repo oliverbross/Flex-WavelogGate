@@ -161,7 +161,7 @@ func New(cfg *config.Profile, appVersion string) *Client {
 			Timeout:   5 * time.Second,
 			Transport: transport,
 		},
-		userAgent: "WavelogGate/" + appVersion,
+		userAgent: "Flex-WavelogGate/" + appVersion,
 	}
 	c.cfg.Store(cfg)
 	return c

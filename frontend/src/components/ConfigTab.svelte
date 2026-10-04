@@ -70,24 +70,12 @@
     setTimeout(() => { testMsg = ""; testSuccess = null; }, 5000);
   }
 
-  $: radioType = cfg
-    ? cfg.profiles[cfg.profile]?.flrig_ena
-      ? "flrig"
-      : cfg.profiles[cfg.profile]?.hamlib_ena
-        ? cfg.profiles[cfg.profile]?.hamlib_managed
-          ? "internal"
-          : "hamlib"
-        : "none"
-    : "none";
-
-  $: ignorePwr = cfg?.profiles?.[cfg.profile]?.ignore_pwr ?? false;
+  $: radioEnabled = cfg?.profiles?.[cfg.profile]?.xcat_ena ?? false;
   $: rotatorEnabled = cfg?.profiles?.[cfg.profile]?.rotator_enabled ?? false;
   $: satEnabled = cfg?.profiles?.[cfg.profile]?.sat_enabled ?? false;
 
-  function setRadioType(type) {
-    setProfileField("flrig_ena",     type === "flrig");
-    setProfileField("hamlib_ena",    type === "hamlib" || type === "internal");
-    setProfileField("hamlib_managed", type === "internal");
+  function setRadioEnabled(enabled) {
+    setProfileField("xcat_ena", enabled);
   }
 </script>
 
@@ -120,10 +108,9 @@
       />
       <RadioSection
         profile={activeProfile()}
-        {radioType}
-        {ignorePwr}
+        {radioEnabled}
         on:fieldchange={(e) => setProfileField(e.detail.key, e.detail.value)}
-        on:typechange={(e) => setRadioType(e.detail)}
+        on:enablechange={(e) => setRadioEnabled(e.detail)}
       />
       <RotatorSection
         profile={activeProfile()}

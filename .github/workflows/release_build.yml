@@ -16,22 +16,22 @@ jobs:
         include:
           - os: macos-latest
             platform: darwin/arm64
-            artifact: WavelogGate-darwin-arm64
+            artifact: Flex-WavelogGate-darwin-arm64
           - os: macos-latest
             platform: darwin/amd64
-            artifact: WavelogGate-darwin-amd64
+            artifact: Flex-WavelogGate-darwin-amd64
           - os: windows-latest
             platform: windows/amd64
-            artifact: WavelogGate-windows-amd64-x64
+            artifact: Flex-WavelogGate-windows-amd64-x64
           - os: windows-latest
             platform: windows/386
-            artifact: WavelogGate-windows-i386-x86
+            artifact: Flex-WavelogGate-windows-i386-x86
           - os: windows-latest
             platform: windows/arm64
-            artifact: WavelogGate-windows-arm64
+            artifact: Flex-WavelogGate-windows-arm64
           - os: ubuntu-22.04
             platform: linux/amd64
-            artifact: WavelogGate-linux-amd64-webkit4.0
+            artifact: Flex-WavelogGate-linux-amd64-webkit4.0
             webkit_pkg: libwebkit2gtk-4.0-dev
             webkit_tags: ''
             webkit_label: webkit4.0
@@ -39,7 +39,7 @@ jobs:
             rpm_arch: x86_64
           - os: ubuntu-24.04
             platform: linux/amd64
-            artifact: WavelogGate-linux-amd64-webkit4.1
+            artifact: Flex-WavelogGate-linux-amd64-webkit4.1
             webkit_pkg: libwebkit2gtk-4.1-dev
             webkit_tags: '-tags webkit2_41'
             webkit_label: webkit4.1
@@ -47,7 +47,7 @@ jobs:
             rpm_arch: x86_64
           - os: ubuntu-22.04-arm
             platform: linux/arm64
-            artifact: WavelogGate-linux-arm64-webkit4.0
+            artifact: Flex-WavelogGate-linux-arm64-webkit4.0
             webkit_pkg: libwebkit2gtk-4.0-dev
             webkit_tags: ''
             webkit_label: webkit4.0
@@ -55,7 +55,7 @@ jobs:
             rpm_arch: aarch64
           - os: ubuntu-24.04-arm
             platform: linux/arm64
-            artifact: WavelogGate-linux-arm64-webkit4.1
+            artifact: Flex-WavelogGate-linux-arm64-webkit4.1
             webkit_pkg: libwebkit2gtk-4.1-dev
             webkit_tags: '-tags webkit2_41'
             webkit_label: webkit4.1
@@ -121,7 +121,7 @@ jobs:
           /usr/bin/codesign --force --options runtime \
             --entitlements build/darwin/entitlements.plist \
             -s "$CERT_NAME" \
-            --deep "build/bin/WavelogGate.app"
+            --deep "build/bin/Flex-WavelogGate.app"
 
       - name: Package (macOS — create DMG)
         if: runner.os == 'macOS'
@@ -142,17 +142,17 @@ jobs:
           # It occasionally returns a non-zero status even on success (e.g. when
           # it cannot toggle internet-enable), so verify the output file instead.
           create-dmg \
-            --volname "WavelogGate" \
+            --volname "Flex-WavelogGate" \
             --volicon volicon.icns \
             --background build/darwin/dmg-background.png \
             --window-pos 200 120 \
             --window-size 660 400 \
             --icon-size 128 \
-            --icon "WavelogGate.app" 165 205 \
+            --icon "Flex-WavelogGate.app" 165 205 \
             --app-drop-link 495 205 \
             --no-internet-enable \
             "${{ matrix.artifact }}.dmg" \
-            "build/bin/WavelogGate.app" || true
+            "build/bin/Flex-WavelogGate.app" || true
 
           test -f "${{ matrix.artifact }}.dmg"
 
@@ -187,42 +187,41 @@ jobs:
           WK="${{ matrix.webkit_label }}"
           DEB_ARCH="${{ matrix.deb_arch }}"
           RPM_ARCH="${{ matrix.rpm_arch }}"
-          PKG="wavelog-gate_${VERSION}_${WK}_${DEB_ARCH}"
+          PKG="flex-waveloggate_${VERSION}_${WK}_${DEB_ARCH}"
           mkdir -p "${PKG}/DEBIAN"
           mkdir -p "${PKG}/usr/local/bin"
           mkdir -p "${PKG}/usr/share/applications"
           mkdir -p "${PKG}/usr/share/icons/hicolor/256x256/apps"
 
-          cp build/bin/WavelogGate "${PKG}/usr/local/bin/wavelog-gate"
-          cp build/appicon.png "${PKG}/usr/share/icons/hicolor/256x256/apps/wavelog-gate.png"
+          cp build/bin/Flex-WavelogGate "${PKG}/usr/local/bin/flex-waveloggate"
+          cp build/appicon.png "${PKG}/usr/share/icons/hicolor/256x256/apps/flex-waveloggate.png"
 
           printf '%s\n' \
             '[Desktop Entry]' \
-            'Name=WavelogGate' \
-            'Comment=Amateur radio gateway to Wavelog' \
-            'Exec=/usr/local/bin/wavelog-gate' \
-            'Icon=wavelog-gate' \
+            'Name=Flex-WavelogGate' \
+            'Comment=xCAT and QSO gateway to Wavelog' \
+            'Exec=/usr/local/bin/flex-waveloggate' \
+            'Icon=flex-waveloggate' \
             'Type=Application' \
             'Categories=HamRadio;Network;' \
-            > "${PKG}/usr/share/applications/wavelog-gate.desktop"
+            > "${PKG}/usr/share/applications/flex-waveloggate.desktop"
 
-          printf 'Package: wavelog-gate\nVersion: %s\nArchitecture: %s\nMaintainer: Joerg <joerg@dj7nt.de>\nHomepage: https://github.com/wavelog/WaveLogGate\nDescription: WavelogGate\n Connects WSJT-X/FLDigi and FLRig/Hamlib to Wavelog web logging platform.\n' \
+          printf 'Package: flex-waveloggate\nVersion: %s\nArchitecture: %s\nMaintainer: Flex-WavelogGate contributors\nDescription: Flex-WavelogGate\n Connects xCAT and WSJT-X/FLDigi to the Wavelog web logging platform.\n' \
             "${VERSION}" "${DEB_ARCH}" > "${PKG}/DEBIAN/control"
 
           dpkg-deb --build "${PKG}"
 
           # Build the .rpm from the same staging tree (excludes DEBIAN/)
           fpm -s dir -t rpm \
-            -n wavelog-gate \
+            -n flex-waveloggate \
             -v "${VERSION}" \
             --iteration "${WK}" \
             -a "${RPM_ARCH}" \
-            -m "Joerg <joerg@dj7nt.de>" \
-            --vendor "Joerg <joerg@dj7nt.de>" \
+            -m "Flex-WavelogGate contributors" \
+            --vendor "Flex-WavelogGate contributors" \
             --license "MIT" \
-            --url "https://github.com/wavelog/WaveLogGate" \
-            --description "Connects WSJT-X/FLDigi and FLRig/Hamlib to Wavelog web logging platform." \
-            -p "wavelog-gate-${VERSION}-${WK}.${RPM_ARCH}.rpm" \
+            --description "Connects xCAT and WSJT-X/FLDigi to the Wavelog web logging platform." \
+            -p "flex-waveloggate-${VERSION}-${WK}.${RPM_ARCH}.rpm" \
             -C "${PKG}" \
             usr
 
@@ -235,7 +234,7 @@ jobs:
 
       - name: Upload artifact (Windows)
         if: runner.os == 'Windows'
-        run: cp build/bin/WavelogGate.exe ${{ matrix.artifact }}.exe
+        run: cp build/bin/Flex-WavelogGate.exe ${{ matrix.artifact }}.exe
         shell: bash
       - uses: actions/upload-artifact@v5
         if: runner.os == 'Windows'
@@ -270,54 +269,16 @@ jobs:
           generate_release_notes: true
           tag_name: ${{ github.ref_name }}
           files: |
-            artifacts/WavelogGate-darwin-arm64/*.dmg
-            artifacts/WavelogGate-darwin-amd64/*.dmg
-            artifacts/WavelogGate-windows-amd64-x64/WavelogGate-windows-amd64-x64.exe
-            artifacts/WavelogGate-windows-i386-x86/WavelogGate-windows-i386-x86.exe
-            artifacts/WavelogGate-windows-arm64/WavelogGate-windows-arm64.exe
-            artifacts/WavelogGate-linux-amd64-webkit4.0/*.deb
-            artifacts/WavelogGate-linux-amd64-webkit4.1/*.deb
-            artifacts/WavelogGate-linux-amd64-webkit4.0/*.rpm
-            artifacts/WavelogGate-linux-amd64-webkit4.1/*.rpm
-            artifacts/WavelogGate-linux-arm64-webkit4.0/*.deb
-            artifacts/WavelogGate-linux-arm64-webkit4.1/*.deb
-            artifacts/WavelogGate-linux-arm64-webkit4.0/*.rpm
-            artifacts/WavelogGate-linux-arm64-webkit4.1/*.rpm
-
-  aur:
-    needs: release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') && github.repository == 'wavelog/WaveLogGate'
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
-
-      - name: Update pkgver
-        run: |
-          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/waveloggate-git/PKGBUILD
-          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/waveloggate-bin/PKGBUILD
-
-      - name: Publish waveloggate-git to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v3
-        with:
-          pkgname: waveloggate-git
-          pkgbuild: aur/waveloggate-git/PKGBUILD
-          commit_username: ${{ github.actor }}
-          commit_email: fabian.berg@hb9hil.org
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Update to v${{ env.VERSION }}
-          updpkgsums: true
-
-      - name: Publish waveloggate-bin to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v3
-        with:
-          pkgname: waveloggate-bin
-          pkgbuild: aur/waveloggate-bin/PKGBUILD
-          commit_username: ${{ github.actor }}
-          commit_email: fabian.berg@hb9hil.org
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Update to v${{ env.VERSION }}
-          updpkgsums: true
+            artifacts/Flex-WavelogGate-darwin-arm64/*.dmg
+            artifacts/Flex-WavelogGate-darwin-amd64/*.dmg
+            artifacts/Flex-WavelogGate-windows-amd64-x64/Flex-WavelogGate-windows-amd64-x64.exe
+            artifacts/Flex-WavelogGate-windows-i386-x86/Flex-WavelogGate-windows-i386-x86.exe
+            artifacts/Flex-WavelogGate-windows-arm64/Flex-WavelogGate-windows-arm64.exe
+            artifacts/Flex-WavelogGate-linux-amd64-webkit4.0/*.deb
+            artifacts/Flex-WavelogGate-linux-amd64-webkit4.1/*.deb
+            artifacts/Flex-WavelogGate-linux-amd64-webkit4.0/*.rpm
+            artifacts/Flex-WavelogGate-linux-amd64-webkit4.1/*.rpm
+            artifacts/Flex-WavelogGate-linux-arm64-webkit4.0/*.deb
+            artifacts/Flex-WavelogGate-linux-arm64-webkit4.1/*.deb
+            artifacts/Flex-WavelogGate-linux-arm64-webkit4.0/*.rpm
+            artifacts/Flex-WavelogGate-linux-arm64-webkit4.1/*.rpm

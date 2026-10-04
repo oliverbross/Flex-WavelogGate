@@ -24,7 +24,7 @@ func main() {
 	}
 
 	if debug.Verbose {
-		f, err := os.OpenFile("waveloggate-debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		f, err := os.OpenFile("flex-waveloggate-debug.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err == nil {
 			log.SetOutput(f)
 			defer f.Close()
@@ -34,7 +34,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:            "WavelogGate2 by DJ7NT " + appVersion,
+		Title:            "Flex-WavelogGate " + appVersion,
 		Width:            430,
 		Height:           620,
 		MinWidth:         430,

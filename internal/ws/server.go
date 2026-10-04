@@ -91,7 +91,7 @@ func (h *Hub) add(c *client) {
 	// Send welcome.
 	welcome, _ := json.Marshal(map[string]string{
 		"type":    "welcome",
-		"message": "Connected to WavelogGate WebSocket server",
+		"message": "Connected to Flex-WavelogGate WebSocket server",
 	})
 	c.send <- welcome
 

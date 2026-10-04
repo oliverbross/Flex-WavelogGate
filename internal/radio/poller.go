@@ -143,9 +143,8 @@ func (p *Poller) poll() {
 		return
 	}
 
-	// Optionally zero out power. HamlibClient already skips the RFPOWER read
-	// when this is set; this is the backstop that also covers FLRig, which
-	// reports power unconditionally.
+	// Retained for migrated profiles. xCAT does not expose RF power through the
+	// supported subset, so its value is already zero.
 	if cfg.IgnorePwr {
 		status.Power = 0
 	}
@@ -164,33 +163,37 @@ func (p *Poller) poll() {
 	if changed || forceUpdate {
 		p.lastStatus = status
 		p.lastUpdated = time.Now()
-		p.mu.Unlock()
+	}
+	p.mu.Unlock()
 
-		if p.onStatus != nil {
-			p.onStatus(status)
-		}
+	// UI listeners may mount after the first immediate poll. Publish the latest
+	// read every second so a newly opened window never remains at "No radio data".
+	// Wavelog HTTP updates below remain change/refresh driven.
+	if p.onStatus != nil {
+		p.onStatus(status)
+	}
+	if !changed && !forceUpdate {
+		return
+	}
 
-		// Send to Wavelog.
-		if p.wlClient != nil {
-			data := wavelog.RadioData{
-				Frequency: int64(math.Round(status.FreqA)),
-				Mode:      status.Mode,
-				Power:     status.Power,
-				Split:     status.Split,
-			}
-			if status.Split {
-				data.FrequencyRx = int64(math.Round(status.FreqB))
-				data.ModeRx = status.ModeB
-			}
-			if cfg.SatEnabled {
-				data.PropMode = "SAT"
-				data.SatName = cfg.SatName
-				data.SatMode = cfg.SatMode
-			}
-			_ = p.wlClient.UpdateRadioStatus(data)
+	// Send to Wavelog.
+	if p.wlClient != nil {
+		data := wavelog.RadioData{
+			Frequency: int64(math.Round(status.FreqA)),
+			Mode:      status.Mode,
+			Power:     status.Power,
+			Split:     status.Split,
 		}
-	} else {
-		p.mu.Unlock()
+		if status.Split {
+			data.FrequencyRx = int64(math.Round(status.FreqB))
+			data.ModeRx = status.ModeB
+		}
+		if cfg.SatEnabled {
+			data.PropMode = "SAT"
+			data.SatName = cfg.SatName
+			data.SatMode = cfg.SatMode
+		}
+		_ = p.wlClient.UpdateRadioStatus(data)
 	}
 }
 
@@ -208,15 +211,8 @@ func buildClient(cfg *config.Profile) RadioClient {
 	if cfg == nil {
 		return nil
 	}
-	switch {
-	case cfg.FlrigEna:
-		return NewFLRig(cfg.FlrigHost, cfg.FlrigPort)
-	case cfg.HamlibEna:
-		// Connect to rigctld via TCP for both internal (managed) and external modes
-		// Internal mode: hamlib manager starts rigctld, poller connects to it
-		// External mode: user runs rigctld manually, poller connects to it
-		return NewHamlib(cfg.HamlibHost, cfg.HamlibPort, !cfg.IgnorePwr, cfg.HamlibMaxPower)
-	default:
-		return nil
+	if cfg.XCATEna {
+		return NewXCAT(cfg.XCATHost, cfg.XCATPort)
 	}
+	return nil
 }

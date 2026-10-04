@@ -1,5 +1,5 @@
 name: Report a bug ❌
-description: Report a bug for WavelogGate
+description: Report a bug for Flex-WavelogGate
 title: "Choose a descriptive title......"
 labels: ["bug"]
 body:
@@ -20,7 +20,7 @@ body:
       options:
         - label: I am running the latest version of Wavelog
           required: true
-        - label: I am running the latest version of WavelogGate
+        - label: I am running the latest version of Flex-WavelogGate
           required: true
         - label: This is a bug, not a setup question or feature request
           required: true
@@ -65,11 +65,11 @@ body:
       required: true
 
   - type: input
-    id: waveloggate-version
+    id: flex-waveloggate-version
     attributes:
-      label: WavelogGate Version
-      description: Which version of WavelogGate are you using?
-      placeholder: e.g., 1.1.10
+      label: Flex-WavelogGate Version
+      description: Which version of Flex-WavelogGate are you using?
+      placeholder: e.g., 0.1.0
     validations:
       required: true
 

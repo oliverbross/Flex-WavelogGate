@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	beeep.AppName = "WavelogGate"
+	beeep.AppName = "Flex-WavelogGate"
 }
 
 // QSOResult shows a system notification for a QSO logging result.

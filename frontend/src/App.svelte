@@ -246,7 +246,7 @@
     // Load initial state
     const cfg = await GetConfig();
     const p = cfg.profiles?.[cfg.profile];
-    radioEnabled   = p?.flrig_ena || p?.hamlib_ena || false;
+    radioEnabled   = p?.xcat_ena || false;
     rotatorEnabled = p?.rotator_enabled || false;
     if (rotatorEnabled) {
       const s = await GetRotatorStatus();

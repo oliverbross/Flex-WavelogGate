@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -17,7 +16,6 @@ import (
 	"waveloggate/internal/cert"
 	"waveloggate/internal/config"
 	"waveloggate/internal/debug"
-	"waveloggate/internal/hamlib"
 	"waveloggate/internal/notify"
 	"waveloggate/internal/qsy"
 	"waveloggate/internal/queue"
@@ -29,7 +27,7 @@ import (
 	"waveloggate/internal/ws"
 )
 
-var appVersion = "vdev"
+var appVersion = "v0.1.0-xcat"
 
 // App is the Wails application backend.
 type App struct {
@@ -42,13 +40,7 @@ type App struct {
 	poller    *radio.Poller
 	wlClient  *wavelog.Client
 	rotator   *rotator.Client
-	hamlibMgr *hamlib.Manager
 	queue     *queue.Queue
-
-	// hamlibStartMu serialises stop+start sequences so that rapid profile
-	// switches (SaveConfig, SwitchProfile) cannot interleave and leave a
-	// stale process running.
-	hamlibStartMu sync.Mutex
 }
 
 // NewApp creates a new App.
@@ -60,7 +52,7 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	go startmenu.EnsureShortcut("WaveLogGate") //nolint:errcheck
+	go startmenu.EnsureShortcut("Flex-WavelogGate") //nolint:errcheck
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -132,15 +124,6 @@ func (a *App) startup(ctx context.Context) {
 	}
 	rot.Start()
 	a.rotator = rot
-
-	// Hamlib process manager.
-	a.hamlibMgr = hamlib.New(func(running bool, message string) {
-		wailsruntime.EventsEmit(a.ctx, "hamlib:status", map[string]interface{}{
-			"running": running,
-			"message": message,
-		})
-	})
-	a.startManagedHamlib(profile)
 
 	a.wsHub.OnMessage = func(data []byte) {
 		debug.Log("[WS] received: %s", data)
@@ -223,7 +206,7 @@ func (a *App) startup(ctx context.Context) {
 			Frequency: int64(math.Round(status.FreqA)),
 			Mode:      status.Mode,
 			Power:     status.Power,
-			Radio:     profile.WavelogRadioname,
+			Radio:     a.cfg.ActiveProfile().WavelogRadioname,
 		}
 		if status.Split {
 			msg.Frequency = int64(math.Round(status.FreqB)) // TX
@@ -288,9 +271,6 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.qsySrv != nil {
 		a.qsySrv.Shutdown(ctx)
 	}
-	if a.hamlibMgr != nil {
-		a.hamlibMgr.Stop()
-	}
 	if a.udpSrv != nil {
 		a.udpSrv.Stop()
 	}
@@ -313,7 +293,6 @@ func (a *App) applyProfile(profile config.Profile) {
 	a.wlClient.UpdateProfile(&profile)
 	a.poller.UpdateConfig(&profile)
 	a.rotator.UpdateProfile(profile)
-	a.startManagedHamlib(profile)
 	if a.udpSrv != nil {
 		a.udpSrv.UpdateConfig(&profile)
 	}
@@ -351,15 +330,7 @@ func queueFilePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "WavelogGate", "queue.jsonl"), nil
-}
-
-// emitHamlibError emits a hamlib:status error event to the frontend.
-func (a *App) emitHamlibError(msg string) {
-	wailsruntime.EventsEmit(a.ctx, "hamlib:status", map[string]interface{}{
-		"running": false,
-		"message": msg,
-	})
+	return filepath.Join(dir, "Flex-WavelogGate", "queue.jsonl"), nil
 }
 
 func (a *App) emitURLWarning(url string) {
@@ -402,7 +373,7 @@ func (a *App) SaveConfig(cfg config.Config) config.Config {
 	a.applyProfile(profile)
 
 	wailsruntime.EventsEmit(a.ctx, "rotator:enabled", profile.RotatorEnabled)
-	wailsruntime.EventsEmit(a.ctx, "radio:enabled", profile.FlrigEna || profile.HamlibEna)
+	wailsruntime.EventsEmit(a.ctx, "radio:enabled", profile.XCATEna)
 
 	return a.cfg
 }
@@ -509,7 +480,7 @@ func (a *App) SwitchProfile(index int) error {
 
 	wailsruntime.EventsEmit(a.ctx, "profile:switched", map[string]interface{}{
 		"rotatorEnabled": profile.RotatorEnabled,
-		"radioEnabled":   profile.FlrigEna || profile.HamlibEna,
+		"radioEnabled":   profile.XCATEna,
 	})
 	return nil
 }
@@ -664,79 +635,6 @@ func (a *App) InstallCert() cert.InstallResult {
 	return cert.Install(a.certPaths.CACert)
 }
 
-// ─── Hamlib management ─────────────────────────────────────────────────────────
-
-// HamlibStatus is returned by GetHamlibStatus.
-type HamlibStatus struct {
-	Installed    bool   `json:"installed"`
-	Version      string `json:"version"`
-	Running      bool   `json:"running"`
-	StatusMsg    string `json:"statusMsg"`
-	InstallGuide string `json:"installGuide"`
-	CanDownload  bool   `json:"canDownload"`
-}
-
-// DownloadResult is returned by DownloadHamlib.
-type DownloadResult struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-}
-
-// GetHamlibStatus returns the current hamlib installation and process status.
-func (a *App) GetHamlibStatus() HamlibStatus {
-	_, err := hamlib.RigctldPath()
-	installed := err == nil
-	return HamlibStatus{
-		Installed:    installed,
-		Version:      hamlib.InstalledVersion(),
-		Running:      a.hamlibMgr != nil && a.hamlibMgr.IsRunning(),
-		StatusMsg:    a.hamlibStatusMsg(),
-		InstallGuide: hamlib.InstallGuide(),
-		CanDownload:  hamlib.CanDownload(),
-	}
-}
-
-func (a *App) hamlibStatusMsg() string {
-	if a.hamlibMgr == nil {
-		return ""
-	}
-	return a.hamlibMgr.StatusString()
-}
-
-// DownloadHamlib triggers the hamlib download (Windows) or returns install guide (others).
-func (a *App) DownloadHamlib() DownloadResult {
-	progressCh := make(chan int, 16)
-	go func() {
-		for pct := range progressCh {
-			wailsruntime.EventsEmit(a.ctx, "hamlib:download_progress", map[string]interface{}{
-				"percent": pct,
-			})
-		}
-	}()
-
-	ctx := a.ctx
-	err := hamlib.Download(ctx, progressCh)
-	close(progressCh)
-	if err != nil {
-		return DownloadResult{Success: false, Message: err.Error()}
-	}
-	return DownloadResult{Success: true, Message: "rigctld installed successfully"}
-}
-
-// SearchRadioModels returns hamlib radio models matching the query string.
-// An empty query string returns all available models (resets any previous search).
-func (a *App) SearchRadioModels(q string) []hamlib.RadioModel {
-	return hamlib.SearchModels(q)
-}
-
-// RefreshRadioModels refreshes the cached radio model list from the installed rigctld.
-// Useful after installing/updating hamlib or to reset the model enumeration.
-func (a *App) RefreshRadioModels() int {
-	hamlib.InvalidateModelCache()
-	models := hamlib.SearchModels("")
-	return len(models)
-}
-
 // RadioSetFreq tunes the radio to the given frequency in Hz, keeping the current mode.
 func (a *App) RadioSetFreq(hz int64) error {
 	if a.poller == nil {
@@ -751,80 +649,6 @@ func (a *App) RadioSetTxFreq(hz int64) error {
 		return fmt.Errorf("radio not connected")
 	}
 	return a.poller.SetTxFreq(hz)
-}
-
-// GetSerialPorts returns available serial ports on the current platform.
-func (a *App) GetSerialPorts() []string {
-	return hamlib.ListSerialPorts()
-}
-
-// StartHamlib starts (or restarts) the managed rigctld process for the active profile.
-// Runs asynchronously (like startManagedHamlib) to avoid blocking the Wails RPC thread
-// and to serialise with any concurrent stop+start sequence via hamlibStartMu.
-func (a *App) StartHamlib() error {
-	if a.hamlibMgr == nil {
-		return fmt.Errorf("hamlib manager not initialised")
-	}
-	profile := a.cfg.ActiveProfile()
-	go func() {
-		a.hamlibStartMu.Lock()
-		defer a.hamlibStartMu.Unlock()
-		a.hamlibMgr.Stop()
-		if err := a.hamlibMgr.Start(profile); err != nil {
-			a.emitHamlibError(err.Error())
-		}
-	}()
-	return nil
-}
-
-// StopHamlib stops the managed rigctld process.
-// Runs asynchronously to serialise with any in-flight startManagedHamlib goroutine
-// via hamlibStartMu, preventing a concurrent start sequence from undoing the stop.
-func (a *App) StopHamlib() {
-	if a.hamlibMgr == nil {
-		return
-	}
-	go func() {
-		a.hamlibStartMu.Lock()
-		defer a.hamlibStartMu.Unlock()
-		a.hamlibMgr.Stop()
-	}()
-}
-
-// startManagedHamlib stops any running instance and starts a new one if the
-// profile has HamlibManaged=true and HamlibEna=true.
-// The entire stop+start sequence runs in a goroutine so that callers on the
-// Wails RPC thread (SaveConfig, SwitchProfile) are never blocked by the
-// up-to-5-second process-exit wait.
-func (a *App) startManagedHamlib(profile config.Profile) {
-	if a.hamlibMgr == nil {
-		return
-	}
-	go func() {
-		// Serialise concurrent calls: a rapid SaveConfig → SwitchProfile
-		// sequence must not let the second Stop() kill the process the first
-		// Start() just launched.
-		a.hamlibStartMu.Lock()
-		defer a.hamlibStartMu.Unlock()
-
-		// Stop waits for the old process to exit (up to 5 s on Windows) so
-		// the serial port is released before the new instance tries to open it.
-		a.hamlibMgr.Stop()
-
-		if !profile.HamlibManaged || !profile.HamlibEna {
-			return
-		}
-
-		// Validate serial port before attempting to start rigctld.
-		if valid, warning := config.ValidateSerialPort(profile.HamlibDevice); !valid {
-			a.emitHamlibError("Configuration Error: " + warning)
-			return
-		}
-
-		if err := a.hamlibMgr.Start(profile); err != nil {
-			a.emitHamlibError(err.Error())
-		}
-	}()
 }
 
 // mapKeys returns the keys of a map for debug logging.
