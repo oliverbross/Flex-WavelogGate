@@ -274,7 +274,7 @@ jobs:
       - name: Create checksums
         shell: bash
         run: |
-          find artifacts -type f -print0 \
+          find artifacts -type f ! -name 'SHA256SUMS.txt' -print0 \
             | sort -z \
             | xargs -0 sha256sum \
             | sed -E 's#  artifacts/[^/]+/#  #' \
